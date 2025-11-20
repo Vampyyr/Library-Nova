@@ -1,0 +1,32 @@
+{
+    "1@novasbe.pt": {
+        "id": "1",
+        "role": "Student",
+        "display_name": "Sofia Santos",
+        "password": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    "2@novasbe.pt": {
+        "id": "2",
+        "role": "Student",
+        "display_name": "Jo\u00e3o Rodrigues",
+        "password": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    "3@novasbe.pt": {
+        "id": "3",
+        "role": "Student",
+        "display_name": "Maria Oliveira",
+        "password": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    "4@novasbe.pt": {
+        "id": "4",
+        "role": "Student",
+        "display_name": "Pedro Fernandes",
+        "password": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a"
+    },
+    "5@novasbe.pt": {
+        "id": "5",
+        "role": "Student",
+        "display_name": "Leonor Ferreira",
+        "password": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    }
+}

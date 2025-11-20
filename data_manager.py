@@ -100,3 +100,5 @@ def get_eligible_bookings(all_bookings):
                 eligible_bookings.append(booking)
                 
     return eligible_bookings
+
+STATUS_FILE = "library_status.json"

@@ -1,0 +1,50 @@
+[
+    {
+        "user_email": "1@novasbe.pt",
+        "type": "Group Study Room",
+        "resource_id": "G-R04 (F1)",
+        "date": "2025-11-20",
+        "start_time": "16:30",
+        "end_time": "17:00",
+        "duration": "30 minutes",
+        "checkin_code": "941",
+        "status": "Confirmed",
+        "check_in_time": null
+    },
+    {
+        "user_email": "1@novasbe.pt",
+        "type": "Group Study Room",
+        "resource_id": "G-R07 (F2)",
+        "date": "2025-11-20",
+        "start_time": "16:30",
+        "end_time": "17:00",
+        "duration": "30 minutes",
+        "checkin_code": "0CW",
+        "status": "Confirmed",
+        "check_in_time": null
+    },
+    {
+        "user_email": "2@novasbe.pt",
+        "type": "Group Study Room",
+        "resource_id": "G-R03 (F1)",
+        "date": "2025-11-20",
+        "start_time": "17:00",
+        "end_time": "17:30",
+        "duration": "30 minutes",
+        "checkin_code": "XGN",
+        "status": "Confirmed",
+        "check_in_time": null
+    },
+    {
+        "user_email": "2@novasbe.pt",
+        "type": "Bloomberg Terminal",
+        "resource_id": "BT-D (F1)",
+        "date": "2025-11-20",
+        "start_time": "17:00",
+        "end_time": "17:30",
+        "duration": "30 minutes",
+        "checkin_code": "809",
+        "status": "Confirmed",
+        "check_in_time": null
+    }
+]

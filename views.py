@@ -108,6 +108,7 @@ def render_home_tab():
     else:
         status = "Open" if 8 <= now.hour < 20 else "Closed"
     
+    # 1. Seat Simulation (Live Dots)
     if 'seat_states' not in st.session_state: st.session_state.seat_states = {}
     st.session_state.seat_states = update_seat_simulation(st.session_state.seat_states, ALL_FREE_SEATS.keys())
     
@@ -115,19 +116,34 @@ def render_home_tab():
     occupied_seats = sum(1 for s in st.session_state.seat_states.values() if s == "Occupied")
     occupancy_pct = int((occupied_seats / total_seats) * 100) if total_seats > 0 else 0
 
+    # 2. Resource Availability (Look Ahead Logic)
     all_bookings = load_data()
     today_str = now.strftime("%Y-%m-%d")
-    current_time = now.time()
+    
+    # --- [NEW LOGIC START] ---
+    # Calculate the STRICT NEXT 30-minute slot to match booking rules.
+    # Example: 16:17 -> Check availability for 16:30
+    # Example: 16:30 -> Check availability for 17:00
+    current_total_minutes = now.hour * 60 + now.minute
+    next_slot_minutes = ((current_total_minutes // 30) + 1) * 30
+    
+    check_hour = (next_slot_minutes // 60) % 24
+    check_minute = next_slot_minutes % 60
+    check_time = dt_time(check_hour, check_minute)
+    # --- [NEW LOGIC END] ---
+
     active_resources = set()
     
     for b in all_bookings:
         if b['date'] == today_str and b['status'] in ['Confirmed', 'Active']:
             start = datetime.strptime(b['start_time'], "%H:%M").time()
             end = datetime.strptime(b['end_time'], "%H:%M").time()
-            if start <= current_time < end: 
+            
+            # Check if the room is booked at the NEXT slot time
+            if start <= check_time < end: 
                 active_resources.add(b['resource_id'])
     
-    # --- UPDATED CALCULATION FOR "X/Y AVAILABLE" ---
+    # --- DISPLAY METRICS ---
     total_rooms = len(AVAILABLE_RESOURCES["Group Study Room"])
     total_bt = len(AVAILABLE_RESOURCES["Bloomberg Terminal"])
 
@@ -138,9 +154,10 @@ def render_home_tab():
     with col1: st.metric("Library Status", status)
     with col2: st.metric("Live Occupancy", f"{occupancy_pct}%")
     
-    # [cite_start]Display formatted X/Y Available [cite: 1]
-    with col3: st.metric("Group Rooms", f"{free_rooms}/{total_rooms} Available")
-    with col4: st.metric("Bloomberg Terminals", f"{free_bt}/{total_bt} Available")
+    # We update the label to be clear we are showing the upcoming slot
+    slot_label = check_time.strftime("%H:%M")
+    with col3: st.metric("Group Rooms", f"{free_rooms}/{total_rooms} Available", help=f"Availability at {slot_label}")
+    with col4: st.metric("Bloomberg Terminals", f"{free_bt}/{total_bt} Available", help=f"Availability at {slot_label}")
     
     st.markdown("---")
     st.markdown("### Campus Events")
@@ -476,6 +493,7 @@ def render_profile_tab():
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Log Out", type="primary", use_container_width=True):
             st.session_state.clear()
+            st.query_params.clear()
             st.markdown('<meta http-equiv="refresh" content="0">', unsafe_allow_html=True)
 
 # ==========================================
@@ -488,6 +506,7 @@ def render_admin_tab():
     with c_logout: 
         if st.button("Log Out", key="admin_logout", type="primary"):
             st.session_state.clear()
+            st.query_params.clear()
             st.markdown('<meta http-equiv="refresh" content="0">', unsafe_allow_html=True)
             
     all_bookings = load_data()
@@ -501,19 +520,6 @@ def render_admin_tab():
     col1.metric("Bookings Today", len(todays_bookings))
     col2.metric("Active Now", sum(1 for b in todays_bookings if b['status'] == 'Active'))
     col3.metric("Total No-Shows", sum(1 for b in all_bookings if b['status'] == 'No-Show'))
-
-    st.markdown("---"); st.subheader("Emergency Controls")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Force Close Library", type="primary"):
-            st.session_state.library_override = "CLOSED"
-            st.success("Library marked as CLOSED.")
-            time.sleep(1); st.rerun()
-    with c2:
-        if st.button("Reset to Normal Hours"):
-            st.session_state.library_override = None
-            st.success("Schedule reset.")
-            time.sleep(1); st.rerun()
     
     st.markdown("---"); st.subheader("Student Lookup & Penalty Reset")
     search_email = st.text_input("Enter Student Email:", placeholder="e.g. 55443@novasbe.pt")

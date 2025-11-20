@@ -124,24 +124,63 @@ def login_page():
                     st.error("Invalid password for this account.")
                     return
             
-            # Success: Set Session State
+            # Success: Set Session State & URL Parameter
             student_id, role, display_name, final_password = derive_user_identity(email_input, password_input)
             st.session_state.user_email = email_input
             st.session_state.student_number = student_id
             st.session_state.user_role = role 
             st.session_state.display_name = display_name 
             st.session_state.logged_in = True
+            
+            # PERSISTENCE: Set the session_id in the URL
+            st.query_params["session_id"] = email_input
             st.rerun()
 
 def check_login_status():
-    """Session Guard: Checks if user is logged in, otherwise renders Login Page."""
-    # Initialize default state if not present
+    """
+    Session Guard: 
+    1. Checks if user is already in session_state.
+    2. If not, checks URL parameters for persistence (Refresh handling).
+    3. If neither, renders Login Page.
+    """
+    # Initialize default state variables if missing
     if 'logged_in' not in st.session_state: st.session_state.logged_in = False
     if 'student_number' not in st.session_state: st.session_state.student_number = "N/A"
     if 'user_email' not in st.session_state: st.session_state.user_email = "N/A"
     if 'user_role' not in st.session_state: st.session_state.user_role = "N/A"
     if 'display_name' not in st.session_state: st.session_state.display_name = "User"
 
-    if not st.session_state.logged_in:
-        login_page()
-        st.stop() # Stop main.py execution here
+    # 1. Already Logged In (Session State)
+    if st.session_state.logged_in:
+        return
+
+    # 2. Page Refresh Check (URL Parameters)
+    # Check if 'session_id' exists in the URL and is valid
+    query_params = st.query_params
+    token_email = query_params.get("session_id")
+
+    if token_email:
+        user_data_all = load_student_ids()
+        
+        # Verify the token matches a known user or Admin
+        if token_email == ADMIN_EMAIL:
+             st.session_state.user_email = ADMIN_EMAIL
+             st.session_state.student_number = "ADMIN"
+             st.session_state.user_role = "Librarian"
+             st.session_state.display_name = "Library Administrator"
+             st.session_state.logged_in = True
+             return
+        
+        elif token_email in user_data_all:
+            # Restore user session from DB
+            data = user_data_all[token_email]
+            st.session_state.user_email = token_email
+            st.session_state.student_number = data['id']
+            st.session_state.user_role = data['role']
+            st.session_state.display_name = data['display_name']
+            st.session_state.logged_in = True
+            return
+
+    # 3. Not Logged In -> Render Login Page
+    login_page()
+    st.stop()
