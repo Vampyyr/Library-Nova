@@ -32,6 +32,10 @@ def apply_custom_styles():
         color: #F5F5F7;
         font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }
+ 
+    div[data-testid="InputInstructions"] {
+        display: none !important;
+    }
     
     /* CARD COMPONENTS */
     div[data-testid="stVerticalBlockBorderWrapper"] > div {
