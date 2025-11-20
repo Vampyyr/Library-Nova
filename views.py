@@ -426,6 +426,39 @@ def render_bookings_tab():
     st.markdown("### Your Bookings")
     my_bookings = [b for b in all_bookings if b.get('user_email') == st.session_state.user_email]
     
+    # (Removed the 'Handle Cancel Request' block from here - it is now inside the button below)
+
+    if not my_bookings:
+        st.info("You have no upcoming bookings.")
+    else:
+        for b in sorted(my_bookings, key=lambda x: x['date']):
+            status = b.get('status', 'Confirmed')
+            with st.container(border=True):
+                c1, c2, c3 = st.columns([3, 1, 1])
+                badge = f'<span class="status-badge status-{status.replace(" ", "-")}">{status.upper()}</span>'
+                with c1: 
+                    st.markdown(f"**{b['type']}** | {b['date']}")
+                    st.caption(f"Resource: {b['resource_id']} | Time: {b['start_time']} - {b['end_time']}")
+                    st.markdown(f"**Check-in Code:** <span style='font-size:1.2em; color:#FFD60A; background:#333; padding:2px 6px; border-radius:4px;'>{b['checkin_code']}</span> {badge}", unsafe_allow_html=True)
+                with c2:
+                    st.empty() 
+                with c3:
+                    if status == "Confirmed": 
+                        # DIRECT CANCELLATION LOGIC
+                        if st.button("Cancel", key=f"c_{b['checkin_code']}", use_container_width=True):
+                            # 1. Filter out this specific booking
+                            new_bookings_list = [x for x in all_bookings if x['checkin_code'] != b['checkin_code']]
+                            # 2. Save immediately
+                            save_data(new_bookings_list)
+                            # 3. Feedback & Refresh
+                            st.success("Cancelled!")
+                            time.sleep(0.5)
+                            st.rerun()
+                            
+    # --- USER BOOKING HISTORY ---
+    st.markdown("### Your Bookings")
+    my_bookings = [b for b in all_bookings if b.get('user_email') == st.session_state.user_email]
+    
     # Handle Cancel Request
     if 'cancel_code' not in st.session_state: st.session_state.cancel_code = None
     if st.session_state.cancel_code:
