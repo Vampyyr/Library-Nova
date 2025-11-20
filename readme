@@ -6,5 +6,6 @@ library_app/
 ├── data_manager.py
 ├── auth.py
 ├── views.py
+├── requirements.txt
 │
 └── (The .json files will be created automatically)
