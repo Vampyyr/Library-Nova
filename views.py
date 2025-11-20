@@ -5,7 +5,6 @@ import base64
 import pandas as pd 
 from datetime import datetime, timedelta, time as dt_time, date
 from config import LIBRARY_TIMEZONE, FLOOR_PLANS, ALL_FREE_SEATS, AVAILABLE_RESOURCES, MAX_NO_SHOWS
-# UPDATED IMPORT: Removed generate_qr_image
 from utils import generate_checkin_code, update_seat_simulation, get_target_occupancy
 from auth import update_user_password, update_profile_picture
 from data_manager import load_data, save_data, cleanup_and_update_bookings, get_eligible_bookings, load_student_ids
@@ -59,9 +58,8 @@ def apply_custom_styles():
         transform: scale(1.01);
     }
     /* INCREASE TAB FONT SIZE */
-    /* This targets the text inside the tab buttons */
     div[data-baseweb="tab-list"] p {
-        font-size: 1.1rem !important; /* Increase this number to make it bigger */
+        font-size: 1.1rem !important; 
         font-weight: 500 !important;
     }
     
@@ -157,7 +155,6 @@ def render_home_tab():
     for col, evt in zip([c1, c2, c3], events):
         with col:
             with st.container(border=True):
-                # Using HTML to force exact height (150px) and crop (object-fit: cover)
                 st.markdown(f"""
                 <div style="height: 150px; width: 100%; overflow: hidden; border-radius: 8px; margin-bottom: 12px;">
                     <img src="{evt['img']}" style="width: 100%; height: 100%; object-fit: cover;">
@@ -189,20 +186,16 @@ def render_live_tab():
     with st.expander("Typical Busy Hours", expanded=False):
         st.markdown("### Average Occupancy Rate")
         
-        # Create explicit time labels matching opening hours
         hours_range = range(8, 20) # 08:00 to 20:00
         time_labels = [f"{h:02d}:00" for h in hours_range]
         
-        # Calculate occupancy
         occupancy_values = [int(get_target_occupancy(h) * 100) for h in hours_range]
         
-        # Create DataFrame for proper labeling
         df_chart = pd.DataFrame({
             "Occupancy (%)": occupancy_values,
             "Time": time_labels
         }).set_index("Time")
         
-        # Light Blue Color
         st.bar_chart(df_chart, color="#4BD56D") 
         st.caption("Based on historical traffic data (Gaussian Distribution).")
 
@@ -235,15 +228,12 @@ def render_live_tab():
     st.session_state.seat_states = update_seat_simulation(st.session_state.seat_states, ALL_FREE_SEATS.keys())
     current_floor = st.session_state.current_floor
     
-    # Filter seats by floor
     current_floor_seats = {sid: data for sid, data in ALL_FREE_SEATS.items() if data["floor"] == current_floor}
     
-    # Generate HTML Dots Overlay
     html_dots = ""
     visible_statuses = {}
     for seat_id, dot_info in current_floor_seats.items():
         status = st.session_state.seat_states.get(seat_id, "Available")
-        # Green for Available
         color = "#30D158" if status == "Available" else "#FF453A" 
         visible_statuses[seat_id] = status
         html_dots += f'<div style="position: absolute; top: {dot_info["y"]}; left: {dot_info["x"]}; width: 10px; height: 10px; background-color: {color}; border-radius: 50%; box-shadow: 0 0 3px rgba(0, 0, 0, 0.5); z-index: 2000; transition: background-color 0.5s ease;"></div>'
@@ -255,7 +245,6 @@ def render_live_tab():
     with c_left: st.markdown(f"### {current_floor}")
     with c_right: st.markdown(f"<div style='text-align:right; font-size:1.5em; font-weight:700; color:#30D158;'>{avail_count} <span style='font-size:0.6em; color:#8E8E93;'>/ {len(visible_statuses)} Available</span></div>", unsafe_allow_html=True)
 
-    # Render Map with Overlay
     st.markdown(f"""
     <div class="floor-plan-container">
         <img src="{FLOOR_PLANS[current_floor]}" alt="{current_floor} Floor Plan">
@@ -272,13 +261,6 @@ def render_live_tab():
 # ==========================================
 
 def handle_booking_submission(all_bookings, selected_date, selected_time_str, duration, booking_type):
-    """
-    Core logic for processing a booking request.
-    1. Validates inputs.
-    2. Checks user standing (No-Shows).
-    3. Checks daily limit.
-    4. Checks resource overlap (prevents double booking).
-    """
     if selected_time_str is None or selected_time_str == "No slots available" or duration == 0:
          st.error("Booking failed: No valid time selected.")
          return
@@ -286,35 +268,29 @@ def handle_booking_submission(all_bookings, selected_date, selected_time_str, du
     target_date_str = selected_date.strftime("%Y-%m-%d")
     start_time_dt = datetime.strptime(selected_time_str, "%H:%M").time()
     
-    # 1. CHECK USER STANDING
     user_bookings = [b for b in all_bookings if b['user_email'] == st.session_state.user_email]
     if sum(1 for b in user_bookings if b.get('status', 'Confirmed') == 'No-Show') >= MAX_NO_SHOWS:
         st.error(f"Booking blocked: You have reached the No-Show limit ({MAX_NO_SHOWS}).")
         return
 
-    # 2. DAILY LIMIT CHECK
     user_bookings_today = [b for b in user_bookings if b['date'] == target_date_str and b.get('status', 'Confirmed') in ("Confirmed", "Active")]
     if len(user_bookings_today) >= 2:
         st.error("Booking failed: Limit of 2 bookings per day reached.")
         return
 
-    # 3. CALCULATE END TIME
     start_dt = datetime.combine(selected_date, start_time_dt) 
     end_dt = start_dt + timedelta(minutes=duration)
     
-    # 4. OVERLAP DETECTION (The hard part)
     all_ids = [r['id'] for r in AVAILABLE_RESOURCES.get(booking_type, [])]
     booked_ids = set()
     
     for b in all_bookings:
-        # Only look at bookings for the same day and active status
         if b['date'] == target_date_str and b.get('status', 'Confirmed') in ("Confirmed", "Active"): 
             ex_start = datetime.strptime(b['start_time'], "%H:%M")
             ex_end = datetime.strptime(b['end_time'], "%H:%M")
             ex_start = datetime.combine(selected_date, ex_start.time())
             ex_end = datetime.combine(selected_date, ex_end.time())
             
-            # Mathematical overlap check: (StartA < EndB) and (EndA > StartB)
             if (end_dt > ex_start) and (ex_end > start_dt):
                 if b['resource_id'] in all_ids: 
                     booked_ids.add(b['resource_id'])
@@ -325,8 +301,7 @@ def handle_booking_submission(all_bookings, selected_date, selected_time_str, du
         st.error(f"No slots available for the selected time.")
         return
 
-    # 5. CONFIRMATION
-    res_id = random.choice(available) # Assign random available resource
+    res_id = random.choice(available) 
     code = generate_checkin_code()
     
     new_booking = {
@@ -354,7 +329,7 @@ def render_bookings_tab():
     st.markdown("<h2 style='text-align: center;'>Book a Slot</h2>", unsafe_allow_html=True)
     
     all_bookings = load_data()
-    all_bookings = cleanup_and_update_bookings(all_bookings) # Clean expired first
+    all_bookings = cleanup_and_update_bookings(all_bookings) 
     
     # --- CHECK-IN SECTION ---
     current_eligible = get_eligible_bookings(all_bookings)
@@ -377,7 +352,6 @@ def render_bookings_tab():
     # --- NEW BOOKING FORM ---
     with st.container(border=True):
         st.markdown("#### New Booking")
-        # Check No-Show block
         if sum(1 for b in all_bookings if b['user_email'] == st.session_state.user_email and b.get('status') == 'No-Show') >= MAX_NO_SHOWS:
             st.error("⚠️ BOOKING BLOCKED: Too many No-Shows. Contact Admin.")
         else:
@@ -385,7 +359,6 @@ def render_bookings_tab():
             with c1: b_type = st.selectbox("Resource:", list(AVAILABLE_RESOURCES.keys()))
             with c2: sel_date = st.date_input("Date:", min_value=date.today(), max_value=date.today()+timedelta(days=7), value=date.today())
             
-            # Dynamic Time Slots
             now_tz = datetime.now(LIBRARY_TIMEZONE)
             today_tz = now_tz.date()
             all_slots = [f"{h:02d}:{m:02d}" for h in range(8, 20) for m in (0, 30)]
@@ -394,7 +367,6 @@ def render_bookings_tab():
             if sel_date > today_tz: 
                 avail_times = all_slots 
             elif sel_date == today_tz:
-                # Only show future times for today
                 cur_mins = now_tz.hour * 60 + now_tz.minute
                 for s in all_slots:
                     h, m = map(int, s.split(':'))
@@ -405,13 +377,11 @@ def render_bookings_tab():
             c3, c4 = st.columns(2)
             with c3: sel_time_str = st.selectbox("Start Time:", display_options, key=f"time_{sel_date}")
             with c4:
-                # Dynamic Duration based on library closing time (20:00)
                 duration = 0
                 if sel_time_str and sel_time_str != "No slots available":
                     start_dt = datetime.combine(sel_date, datetime.strptime(sel_time_str, "%H:%M").time())
                     rem_mins = int((datetime.combine(sel_date, dt_time(20,0)) - start_dt).total_seconds()/60)
-                    max_dur = (min(120, rem_mins) // 30) * 30 # Round down to nearest 30
-                    
+                    max_dur = (min(120, rem_mins) // 30) * 30
                     if max_dur >= 30:
                         dur_opts = [m for m in [30, 60, 90, 120] if m <= max_dur]
                         duration = st.selectbox("Duration:", dur_opts, format_func=lambda x: f"{x} mins", key=f"dur_{sel_date}_{sel_time_str}")
@@ -426,12 +396,13 @@ def render_bookings_tab():
     st.markdown("### Your Bookings")
     my_bookings = [b for b in all_bookings if b.get('user_email') == st.session_state.user_email]
     
-    # (Removed the 'Handle Cancel Request' block from here - it is now inside the button below)
+    # NO MORE SEPARATE CANCEL BLOCK HERE
 
     if not my_bookings:
         st.info("You have no upcoming bookings.")
     else:
-        for b in sorted(my_bookings, key=lambda x: x['date']):
+        # Enumerate ensures unique keys for buttons
+        for i, b in enumerate(sorted(my_bookings, key=lambda x: x['date'])):
             status = b.get('status', 'Confirmed')
             with st.container(border=True):
                 c1, c2, c3 = st.columns([3, 1, 1])
@@ -441,48 +412,17 @@ def render_bookings_tab():
                     st.caption(f"Resource: {b['resource_id']} | Time: {b['start_time']} - {b['end_time']}")
                     st.markdown(f"**Check-in Code:** <span style='font-size:1.2em; color:#FFD60A; background:#333; padding:2px 6px; border-radius:4px;'>{b['checkin_code']}</span> {badge}", unsafe_allow_html=True)
                 with c2:
-                    st.empty() 
+                    st.empty() # QR Code removed
                 with c3:
                     if status == "Confirmed": 
-                        # DIRECT CANCELLATION LOGIC
-                        if st.button("Cancel", key=f"c_{b['checkin_code']}", use_container_width=True):
-                            # 1. Filter out this specific booking
+                        # ONE CLICK CANCEL LOGIC
+                        if st.button("Cancel", key=f"c_{b['checkin_code']}_{i}", use_container_width=True):
+                            # Filter out this specific booking immediately
                             new_bookings_list = [x for x in all_bookings if x['checkin_code'] != b['checkin_code']]
-                            # 2. Save immediately
                             save_data(new_bookings_list)
-                            # 3. Feedback & Refresh
                             st.success("Cancelled!")
                             time.sleep(0.5)
                             st.rerun()
-                            
-    # --- USER BOOKING HISTORY ---
-    st.markdown("### Your Bookings")
-    my_bookings = [b for b in all_bookings if b.get('user_email') == st.session_state.user_email]
-    
-    # Handle Cancel Request
-    if 'cancel_code' not in st.session_state: st.session_state.cancel_code = None
-    if st.session_state.cancel_code:
-        save_data([b for b in all_bookings if b['checkin_code'] != st.session_state.cancel_code])
-        st.session_state.cancel_code = None; st.rerun()
-
-    if not my_bookings:
-        st.info("You have no upcoming bookings.")
-    else:
-        for b in sorted(my_bookings, key=lambda x: x['date']):
-            status = b.get('status', 'Confirmed')
-            with st.container(border=True):
-                c1, c2, c3 = st.columns([3, 1, 1])
-                badge = f'<span class="status-badge status-{status.replace(" ", "-")}">{status.upper()}</span>'
-                with c1: 
-                    st.markdown(f"**{b['type']}** | {b['date']}")
-                    st.caption(f"Resource: {b['resource_id']} | Time: {b['start_time']} - {b['end_time']}")
-                    st.markdown(f"**Check-in Code:** <span style='font-size:1.2em; color:#FFD60A; background:#333; padding:2px 6px; border-radius:4px;'>{b['checkin_code']}</span> {badge}", unsafe_allow_html=True)
-                with c2:
-                    st.empty() # QR Code Removed
-                with c3:
-                    if status == "Confirmed": 
-                        if st.button("Cancel", key=f"c_{b['checkin_code']}", use_container_width=True):
-                            st.session_state.update(cancel_code=b['checkin_code'])
 
 # ==========================================
 # 👤 PROFILE TAB
@@ -495,7 +435,6 @@ def render_profile_tab():
     current_user_data = user_data_all.get(st.session_state.user_email, {})
     custom_pic_b64 = current_user_data.get('profile_pic', None)
 
-    # Profile Header
     with st.container(border=True):
         c1, c2 = st.columns([1, 3])
         with c1:
@@ -505,7 +444,6 @@ def render_profile_tab():
                     st.image(img_bytes, width=100)
                 except: st.error("Error loading image")
             else:
-                # Placeholder with initials
                 initials = "".join([n[0] for n in st.session_state.display_name.split() if n]).upper()
                 st.image(f"https://placehold.co/120x120/2C2C2E/FFFFFF?text={initials}", width=100)
         with c2:
@@ -513,7 +451,6 @@ def render_profile_tab():
             st.markdown(f"**ID:** `{st.session_state.student_number}`")
             st.caption(f"{st.session_state.user_email} • {st.session_state.user_role}")
 
-    # Statistics
     all_bookings = load_data()
     my_bookings = [b for b in all_bookings if b.get('user_email') == st.session_state.user_email]
     no_shows = sum(1 for b in my_bookings if b.get('status') == 'No-Show')
@@ -528,7 +465,6 @@ def render_profile_tab():
     
     if no_shows >= MAX_NO_SHOWS: st.error("🚫 You are currently restricted from booking due to No-Shows.")
 
-    # User Settings
     st.markdown("### Settings")
     with st.container(border=True):
         with st.expander("Change Profile Picture"):
@@ -570,14 +506,12 @@ def render_admin_tab():
     today_str = datetime.now(LIBRARY_TIMEZONE).strftime("%Y-%m-%d")
     todays_bookings = [b for b in all_bookings if b['date'] == today_str and b['status'] in ('Confirmed', 'Active')]
     
-    # Overview Metrics
     st.markdown("---")
     col1, col2, col3 = st.columns(3)
     col1.metric("Bookings Today", len(todays_bookings))
     col2.metric("Active Now", sum(1 for b in todays_bookings if b['status'] == 'Active'))
     col3.metric("Total No-Shows", sum(1 for b in all_bookings if b['status'] == 'No-Show'))
 
-    # Emergency Controls (Admin Feature)
     st.markdown("---"); st.subheader("🚨 Emergency Controls")
     c1, c2 = st.columns(2)
     with c1:
@@ -591,7 +525,6 @@ def render_admin_tab():
             st.success("Schedule reset.")
             time.sleep(1); st.rerun()
     
-    # Student Penalty Lookup
     st.markdown("---"); st.subheader("🔎 Student Lookup & Penalty Reset")
     search_email = st.text_input("Enter Student Email:", placeholder="e.g. 55443@novasbe.pt")
     
@@ -613,17 +546,19 @@ def render_admin_tab():
                                 b['status'] = 'Forgiven'
                         save_data(all_bookings); st.success("Forgiven!"); time.sleep(1); st.rerun()
     
-    # Master Booking List
     st.markdown("---"); st.subheader("📅 Master Booking List (Today)")
     if not todays_bookings: st.info("No bookings today.")
     else:
-        for b in sorted(todays_bookings, key=lambda x: x['start_time']):
+        for i, b in enumerate(sorted(todays_bookings, key=lambda x: x['start_time'])):
             with st.container(border=True):
                 c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
                 with c1: st.markdown(f"**{b['resource_id']}**")
                 with c2: st.markdown(f"{b['start_time']} - {b['end_time']}")
                 with c3: st.markdown(f"`{b['user_email']}`")
                 with c4:
-                    if st.button("Force Cancel", key=f"admin_cancel_{b['checkin_code']}"):
-                        all_bookings = [x for x in all_bookings if x['checkin_code'] != b['checkin_code']]
-                        save_data(all_bookings); st.warning("Cancelled"); time.sleep(1); st.rerun()
+                    if st.button("Force Cancel", key=f"admin_cancel_{b['checkin_code']}_{i}"):
+                        new_bookings_list = [x for x in all_bookings if x['checkin_code'] != b['checkin_code']]
+                        save_data(new_bookings_list)
+                        st.warning("Cancelled")
+                        time.sleep(1)
+                        st.rerun()
