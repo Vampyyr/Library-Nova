@@ -38,7 +38,7 @@ left_spacer, tabs_col, right_spacer = st.columns([1, 6, 1])
 with tabs_col:
     if user_role == "Librarian":
         # --- ADMIN VIEW ---
-        tab_home, tab_live, tab_admin = st.tabs(["Home", "Live 💡", "Admin Dashboard 👮"])
+        tab_home, tab_live, tab_admin = st.tabs(["Home", "Live", "Admin Dashboard"])
         
         with tab_home: render_home_tab()
         with tab_live: render_live_tab()

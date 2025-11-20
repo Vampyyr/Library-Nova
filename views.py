@@ -103,22 +103,18 @@ def render_home_tab():
     # --- METRICS CALCULATION ---
     now = datetime.now(LIBRARY_TIMEZONE)
     
-    # Check override first
     if st.session_state.get('library_override') == "CLOSED":
         status = "⛔ Emergency Close"
     else:
         status = "Open" if 8 <= now.hour < 20 else "Closed"
     
-    # Update Simulation
     if 'seat_states' not in st.session_state: st.session_state.seat_states = {}
     st.session_state.seat_states = update_seat_simulation(st.session_state.seat_states, ALL_FREE_SEATS.keys())
     
-    # Calculate Occupancy %
     total_seats = len(ALL_FREE_SEATS)
     occupied_seats = sum(1 for s in st.session_state.seat_states.values() if s == "Occupied")
     occupancy_pct = int((occupied_seats / total_seats) * 100) if total_seats > 0 else 0
 
-    # Calculate Resource Availability based on Real Bookings
     all_bookings = load_data()
     today_str = now.strftime("%Y-%m-%d")
     current_time = now.time()
@@ -134,7 +130,6 @@ def render_home_tab():
     free_rooms = max(0, len(AVAILABLE_RESOURCES["Group Study Room"]) - sum(1 for r in active_resources if "G-R" in r))
     free_bt = max(0, len(AVAILABLE_RESOURCES["Bloomberg Terminal"]) - sum(1 for r in active_resources if "BT" in r))
 
-    # --- DISPLAY METRICS ---
     col1, col2, col3, col4 = st.columns(4)
     with col1: st.metric("Library Status", status)
     with col2: st.metric("Live Occupancy", f"{occupancy_pct}%")
@@ -144,7 +139,6 @@ def render_home_tab():
     st.markdown("---")
     st.markdown("### Campus Events")
 
-    # --- FIXED EVENT CARDS ---
     c1, c2, c3 = st.columns(3)
     events = [
         {"title": "Python for Finance", "date": "Oct 20", "time": "14:00", "loc": "Room B003", "img": "https://cdn.prod.website-files.com/63a58f5eea7e9c9396453f5b/652e5508f25090dc6a5c5e97_65115e377de1ae087455fd30_danial-igdery-FCHlYvR5gJI-unsplash.webp"},
@@ -172,7 +166,6 @@ def render_home_tab():
 def render_live_tab():
     st.markdown("<h2 style='text-align: center;'>Live Seat Availability</h2>", unsafe_allow_html=True)
     
-    # --- INFO BOX FOR FREE ROAMING ---
     with st.expander("FAQ", expanded=False):
         st.markdown("""
         **Free-Roaming Zone:**
@@ -182,36 +175,25 @@ def render_live_tab():
         To reserve a Group Study Room or Bloomberg Terminal, please use the **Bookings** tab.
         """)
 
-    # --- DATA ANALYSIS VISUALIZATION ---
     with st.expander("Typical Busy Hours", expanded=False):
         st.markdown("### Average Occupancy Rate")
-        
-        hours_range = range(8, 20) # 08:00 to 20:00
+        hours_range = range(8, 20)
         time_labels = [f"{h:02d}:00" for h in hours_range]
-        
         occupancy_values = [int(get_target_occupancy(h) * 100) for h in hours_range]
-        
-        df_chart = pd.DataFrame({
-            "Occupancy (%)": occupancy_values,
-            "Time": time_labels
-        }).set_index("Time")
-        
+        df_chart = pd.DataFrame({"Occupancy (%)": occupancy_values, "Time": time_labels}).set_index("Time")
         st.bar_chart(df_chart, color="#4BD56D") 
         st.caption("Based on historical traffic data (Gaussian Distribution).")
 
     st.markdown("---")
 
-    # Check Opening Hours
     now = datetime.now(LIBRARY_TIMEZONE)
     if now.hour >= 20 or now.hour < 8:
         diff = (now + timedelta(days=1)).replace(hour=8, minute=0, second=0) - now if now.hour >= 20 else now.replace(hour=8, minute=0, second=0) - now
         st.warning(f"🌙 **LIBRARY IS CLOSED** | Opens in {int(diff.total_seconds() // 3600)}h {int((diff.total_seconds() % 3600) // 60)}m")
 
-    # State Persistence
     if 'seat_states' not in st.session_state: st.session_state.seat_states = {}
     if 'current_floor' not in st.session_state: st.session_state.current_floor = "Second Floor" 
 
-    # Controls
     with st.container(border=True):
         c1, c2, c_spacer, c3 = st.columns([1, 1, 0.5, 1])
         with c1: 
@@ -224,10 +206,8 @@ def render_live_tab():
 
     st.markdown("---")
 
-    # Simulation Update
     st.session_state.seat_states = update_seat_simulation(st.session_state.seat_states, ALL_FREE_SEATS.keys())
     current_floor = st.session_state.current_floor
-    
     current_floor_seats = {sid: data for sid, data in ALL_FREE_SEATS.items() if data["floor"] == current_floor}
     
     html_dots = ""
@@ -240,7 +220,6 @@ def render_live_tab():
 
     avail_count = sum(1 for s in visible_statuses.values() if s == 'Available')
     
-    # Render Header
     c_left, c_right = st.columns([2, 1])
     with c_left: st.markdown(f"### {current_floor}")
     with c_right: st.markdown(f"<div style='text-align:right; font-size:1.5em; font-weight:700; color:#30D158;'>{avail_count} <span style='font-size:0.6em; color:#8E8E93;'>/ {len(visible_statuses)} Available</span></div>", unsafe_allow_html=True)
@@ -290,7 +269,6 @@ def handle_booking_submission(all_bookings, selected_date, selected_time_str, du
             ex_end = datetime.strptime(b['end_time'], "%H:%M")
             ex_start = datetime.combine(selected_date, ex_start.time())
             ex_end = datetime.combine(selected_date, ex_end.time())
-            
             if (end_dt > ex_start) and (ex_end > start_dt):
                 if b['resource_id'] in all_ids: 
                     booked_ids.add(b['resource_id'])
@@ -301,9 +279,8 @@ def handle_booking_submission(all_bookings, selected_date, selected_time_str, du
         st.error(f"No slots available for the selected time.")
         return
 
-    res_id = random.choice(available) 
+    res_id = random.choice(available)
     code = generate_checkin_code()
-    
     new_booking = {
         "user_email": st.session_state.user_email, 
         "type": booking_type, 
@@ -316,10 +293,8 @@ def handle_booking_submission(all_bookings, selected_date, selected_time_str, du
         "status": "Confirmed", 
         "check_in_time": None
     }
-    
     all_bookings.append(new_booking)
     save_data(all_bookings)
-    
     st.success(f"Booking confirmed for {res_id} on {selected_date}!")
     st.markdown(f"**Check-in Code:** <span style='font-size: 1.5em; color: #FFD60A;'>**{code}**</span>", unsafe_allow_html=True)
     time.sleep(2) 
@@ -329,9 +304,8 @@ def render_bookings_tab():
     st.markdown("<h2 style='text-align: center;'>Book a Slot</h2>", unsafe_allow_html=True)
     
     all_bookings = load_data()
-    all_bookings = cleanup_and_update_bookings(all_bookings) 
+    all_bookings = cleanup_and_update_bookings(all_bookings)
     
-    # --- CHECK-IN SECTION ---
     current_eligible = get_eligible_bookings(all_bookings)
     if current_eligible:
         with st.container(border=True):
@@ -349,7 +323,6 @@ def render_bookings_tab():
                             st.success("Checked in!"); st.rerun()
                     st.error("Invalid code.")
     
-    # --- NEW BOOKING FORM ---
     with st.container(border=True):
         st.markdown("#### New Booking")
         if sum(1 for b in all_bookings if b['user_email'] == st.session_state.user_email and b.get('status') == 'No-Show') >= MAX_NO_SHOWS:
@@ -392,16 +365,12 @@ def render_bookings_tab():
             if st.button("Confirm Booking", type="primary"):
                 handle_booking_submission(all_bookings, sel_date, sel_time_str, duration, b_type)
 
-    # --- USER BOOKING HISTORY ---
     st.markdown("### Your Bookings")
     my_bookings = [b for b in all_bookings if b.get('user_email') == st.session_state.user_email]
-    
-    # NO MORE SEPARATE CANCEL BLOCK HERE
 
     if not my_bookings:
         st.info("You have no upcoming bookings.")
     else:
-        # Enumerate ensures unique keys for buttons
         for i, b in enumerate(sorted(my_bookings, key=lambda x: x['date'])):
             status = b.get('status', 'Confirmed')
             with st.container(border=True):
@@ -412,12 +381,10 @@ def render_bookings_tab():
                     st.caption(f"Resource: {b['resource_id']} | Time: {b['start_time']} - {b['end_time']}")
                     st.markdown(f"**Check-in Code:** <span style='font-size:1.2em; color:#FFD60A; background:#333; padding:2px 6px; border-radius:4px;'>{b['checkin_code']}</span> {badge}", unsafe_allow_html=True)
                 with c2:
-                    st.empty() # QR Code removed
+                    st.empty()
                 with c3:
                     if status == "Confirmed": 
-                        # ONE CLICK CANCEL LOGIC
                         if st.button("Cancel", key=f"c_{b['checkin_code']}_{i}", use_container_width=True):
-                            # Filter out this specific booking immediately
                             new_bookings_list = [x for x in all_bookings if x['checkin_code'] != b['checkin_code']]
                             save_data(new_bookings_list)
                             st.success("Cancelled!")
@@ -487,7 +454,8 @@ def render_profile_tab():
         
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Log Out", type="primary", use_container_width=True):
-            st.session_state.logged_in = False; st.rerun()
+            st.session_state.clear()
+            st.markdown('<meta http-equiv="refresh" content="0">', unsafe_allow_html=True)
 
 # ==========================================
 # 👮 ADMIN DASHBOARD TAB
@@ -498,7 +466,8 @@ def render_admin_tab():
     with c_title: st.markdown("## Librarian Dashboard")
     with c_logout: 
         if st.button("Log Out", key="admin_logout", type="primary"):
-            st.session_state.logged_in = False; st.rerun()
+            st.session_state.clear()
+            st.markdown('<meta http-equiv="refresh" content="0">', unsafe_allow_html=True)
             
     all_bookings = load_data()
     all_bookings = cleanup_and_update_bookings(all_bookings)
@@ -512,7 +481,7 @@ def render_admin_tab():
     col2.metric("Active Now", sum(1 for b in todays_bookings if b['status'] == 'Active'))
     col3.metric("Total No-Shows", sum(1 for b in all_bookings if b['status'] == 'No-Show'))
 
-    st.markdown("---"); st.subheader("🚨 Emergency Controls")
+    st.markdown("---"); st.subheader("Emergency Controls")
     c1, c2 = st.columns(2)
     with c1:
         if st.button("Force Close Library", type="primary"):
@@ -525,7 +494,7 @@ def render_admin_tab():
             st.success("Schedule reset.")
             time.sleep(1); st.rerun()
     
-    st.markdown("---"); st.subheader("🔎 Student Lookup & Penalty Reset")
+    st.markdown("---"); st.subheader("Student Lookup & Penalty Reset")
     search_email = st.text_input("Enter Student Email:", placeholder="e.g. 55443@novasbe.pt")
     
     if search_email:
@@ -536,8 +505,8 @@ def render_admin_tab():
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.markdown(f"**No-Shows:** {no_shows} / {MAX_NO_SHOWS}")
-                if no_shows >= MAX_NO_SHOWS: st.error("🚫 BLOCKED")
-                else: st.success("✅ Good Standing")
+                if no_shows >= MAX_NO_SHOWS: st.error("BLOCKED")
+                else: st.success("Good Standing")
             with c2:
                 if no_shows > 0:
                     if st.button("Forgive All", type="primary"):
@@ -546,7 +515,7 @@ def render_admin_tab():
                                 b['status'] = 'Forgiven'
                         save_data(all_bookings); st.success("Forgiven!"); time.sleep(1); st.rerun()
     
-    st.markdown("---"); st.subheader("📅 Master Booking List (Today)")
+    st.markdown("---"); st.subheader("Master Booking List (Today)")
     if not todays_bookings: st.info("No bookings today.")
     else:
         for i, b in enumerate(sorted(todays_bookings, key=lambda x: x['start_time'])):
