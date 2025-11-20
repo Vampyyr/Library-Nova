@@ -1,0 +1,10 @@
+library_app/
+│
+├── main.py          
+├── config.py         
+├── utils.py
+├── data_manager.py
+├── auth.py
+├── views.py
+│
+└── (The .json files will be created automatically)
