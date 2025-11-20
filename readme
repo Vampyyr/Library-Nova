@@ -1,11 +1,11 @@
 library_app/
 │
-├── main.py          
+├── main.py     
+├── requirements.txt
 ├── config.py         
 ├── utils.py
 ├── data_manager.py
 ├── auth.py
 ├── views.py
-├── requirements.txt
 │
 └── (The .json files will be created automatically)
