@@ -56,14 +56,27 @@ def derive_user_identity(email, initial_password=None):
     
     return new_id, role, new_name, hashed_pw
 
-def update_user_password(email, new_password):
-    """Updates password in JSON storage after hashing it."""
+def update_user_password(email, current_password, new_password):
+    """
+    Updates password in JSON storage after verifying the old one.
+    Returns: (Boolean Success, String Message)
+    """
     user_data = load_student_ids()
+    
     if email in user_data:
+        stored_hash = user_data[email].get('password')
+        input_current_hash = hash_password(current_password)
+        
+        # 1. Verify Current Password
+        if input_current_hash != stored_hash:
+            return False, "The current password you entered is incorrect."
+            
+        # 2. Save New Password
         user_data[email]['password'] = hash_password(new_password)
         save_student_ids(user_data)
-        return True
-    return False
+        return True, "Password updated successfully!"
+        
+    return False, "User account not found."
 
 def update_profile_picture(email, uploaded_file):
     """Converts uploaded image to Base64 string and saves to JSON."""
@@ -95,7 +108,7 @@ def login_page():
         is_known_user = email_input in user_data_all
         stored_password_hash = user_data_all.get(email_input, {}).get('password')
         
-        if st.button("Log In / Create Account", use_container_width=True):
+        if st.button("Log In", use_container_width=True):
             # Validation
             if email_input != ADMIN_EMAIL and not email_input.endswith("@novasbe.pt"):
                  st.error("Invalid email domain. Must be @novasbe.pt")

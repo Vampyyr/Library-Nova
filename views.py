@@ -32,10 +32,6 @@ def apply_custom_styles():
         color: #F5F5F7;
         font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }
- 
-    div[data-testid="InputInstructions"] {
-        display: none !important;
-    }
     
     /* CARD COMPONENTS */
     div[data-testid="stVerticalBlockBorderWrapper"] > div {
@@ -131,14 +127,20 @@ def render_home_tab():
             if start <= current_time < end: 
                 active_resources.add(b['resource_id'])
     
-    free_rooms = max(0, len(AVAILABLE_RESOURCES["Group Study Room"]) - sum(1 for r in active_resources if "G-R" in r))
-    free_bt = max(0, len(AVAILABLE_RESOURCES["Bloomberg Terminal"]) - sum(1 for r in active_resources if "BT" in r))
+    # --- UPDATED CALCULATION FOR "X/Y AVAILABLE" ---
+    total_rooms = len(AVAILABLE_RESOURCES["Group Study Room"])
+    total_bt = len(AVAILABLE_RESOURCES["Bloomberg Terminal"])
+
+    free_rooms = max(0, total_rooms - sum(1 for r in active_resources if "G-R" in r))
+    free_bt = max(0, total_bt - sum(1 for r in active_resources if "BT" in r))
 
     col1, col2, col3, col4 = st.columns(4)
     with col1: st.metric("Library Status", status)
     with col2: st.metric("Live Occupancy", f"{occupancy_pct}%")
-    with col3: st.metric("Group Rooms", f"{free_rooms} Available")
-    with col4: st.metric("Bloomberg", f"{free_bt} Available")
+    
+    # [cite_start]Display formatted X/Y Available [cite: 1]
+    with col3: st.metric("Group Rooms", f"{free_rooms}/{total_rooms} Available")
+    with col4: st.metric("Bloomberg Terminals", f"{free_bt}/{total_bt} Available")
     
     st.markdown("---")
     st.markdown("### Campus Events")
@@ -186,7 +188,7 @@ def render_live_tab():
         occupancy_values = [int(get_target_occupancy(h) * 100) for h in hours_range]
         df_chart = pd.DataFrame({"Occupancy (%)": occupancy_values, "Time": time_labels}).set_index("Time")
         st.bar_chart(df_chart, color="#4BD56D") 
-        st.caption("Based on historical traffic data (Gaussian Distribution).")
+        st.caption("Based on historical traffic data.")
 
     st.markdown("---")
 
@@ -406,6 +408,7 @@ def render_profile_tab():
     current_user_data = user_data_all.get(st.session_state.user_email, {})
     custom_pic_b64 = current_user_data.get('profile_pic', None)
 
+    # --- PROFILE HEADER CARD ---
     with st.container(border=True):
         c1, c2 = st.columns([1, 3])
         with c1:
@@ -422,6 +425,7 @@ def render_profile_tab():
             st.markdown(f"**ID:** `{st.session_state.student_number}`")
             st.caption(f"{st.session_state.user_email} • {st.session_state.user_role}")
 
+    # --- STATS METRICS ---
     all_bookings = load_data()
     my_bookings = [b for b in all_bookings if b.get('user_email') == st.session_state.user_email]
     no_shows = sum(1 for b in my_bookings if b.get('status') == 'No-Show')
@@ -436,8 +440,10 @@ def render_profile_tab():
     
     if no_shows >= MAX_NO_SHOWS: st.error("🚫 You are currently restricted from booking due to No-Shows.")
 
+    # --- SETTINGS SECTION ---
     st.markdown("### Settings")
     with st.container(border=True):
+        # Photo Upload
         with st.expander("Change Profile Picture"):
             uploaded_file = st.file_uploader("Upload a new photo", type=['png', 'jpg', 'jpeg'])
             if uploaded_file is not None:
@@ -446,15 +452,26 @@ def render_profile_tab():
                         st.success("Updated!"); time.sleep(1); st.rerun()
                     else: st.error("Failed to save.")
 
+        # Password Change (UPDATED)
         with st.expander("Change Password"):
+            current_pass = st.text_input("Current Password", type="password")
             new_pass = st.text_input("New Password", type="password")
             confirm_pass = st.text_input("Confirm New Password", type="password")
+            
             if st.button("Update Password"):
-                if len(new_pass) < 1: st.error("Cannot be empty.")
-                elif new_pass != confirm_pass: st.error("Passwords do not match.")
+                if not current_pass:
+                    st.error("Please enter your current password.")
+                elif len(new_pass) < 1: 
+                    st.error("New password cannot be empty.")
+                elif new_pass != confirm_pass: 
+                    st.error("New passwords do not match.")
                 else: 
-                    if update_user_password(st.session_state.user_email, new_pass): st.success("Updated!")
-                    else: st.error("Failed.")
+                    # Call updated auth function with 3 arguments
+                    success, msg = update_user_password(st.session_state.user_email, current_pass, new_pass)
+                    if success: 
+                        st.success(msg)
+                    else: 
+                        st.error(msg)
         
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Log Out", type="primary", use_container_width=True):

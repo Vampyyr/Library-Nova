@@ -1,7 +1,6 @@
 library_app/
 │
-├── main.py     
-├── requirements.txt
+├── main.py          
 ├── config.py         
 ├── utils.py
 ├── data_manager.py
