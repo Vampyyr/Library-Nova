@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, time as dt_time, date
 from config import LIBRARY_TIMEZONE, FLOOR_PLANS, ALL_FREE_SEATS, AVAILABLE_RESOURCES, MAX_NO_SHOWS
 from utils import generate_checkin_code, update_seat_simulation, get_target_occupancy
 from auth import update_user_password, update_profile_picture
-from data_manager import load_data, save_data, cleanup_and_update_bookings, get_eligible_bookings, load_student_ids
+from data_manager import load_data, save_data, cleanup_and_update_bookings, get_eligible_bookings, load_student_ids, save_student_ids
 
 # ==========================================
 # 🎨 STYLES & THEME
@@ -326,9 +326,47 @@ def handle_booking_submission(all_bookings, selected_date, selected_time_str, du
 def render_bookings_tab():
     st.markdown("<h2 style='text-align: center;'>Book a Slot</h2>", unsafe_allow_html=True)
     
+    # 1. Load Data & Run Cleanup (triggers bans if limit reached)
     all_bookings = load_data()
     all_bookings = cleanup_and_update_bookings(all_bookings)
     
+    # 2. Check User Ban Status
+    user_data = load_student_ids()
+    current_user = user_data.get(st.session_state.user_email, {})
+    ban_date_str = current_user.get('ban_release_date')
+    
+    is_banned = False
+    ban_msg = ""
+    
+    if ban_date_str:
+        ban_end = datetime.fromisoformat(ban_date_str)
+        now = datetime.now(LIBRARY_TIMEZONE)
+        
+        if now < ban_end:
+            # Ban is ACTIVE
+            is_banned = True
+            time_left = ban_end - now
+            days = time_left.days
+            hours = time_left.seconds // 3600
+            ban_msg = f"TEMPORARY SUSPENSION - You are blocked from booking due to 3 No-Shows. Time remaining: **{days} days, {hours} hours**."
+        else:
+            # Ban has EXPIRED - Auto-Forgive Logic
+            # 1. Remove ban date from profile
+            del user_data[st.session_state.user_email]['ban_release_date']
+            save_student_ids(user_data) #
+            
+            # 2. Set old "No-Show" bookings to "Forgiven" so they don't trigger a new ban immediately
+            bookings_changed = False
+            for b in all_bookings:
+                if b['user_email'] == st.session_state.user_email and b['status'] == 'No-Show':
+                    b['status'] = 'Forgiven' #
+                    bookings_changed = True
+            
+            if bookings_changed:
+                save_data(all_bookings)
+                st.toast("Your suspension has ended. Booking privileges restored!", icon="🎉")
+
+    # 3. Render Check-in (Always allowed even if banned, for existing bookings)
     current_eligible = get_eligible_bookings(all_bookings)
     if current_eligible:
         with st.container(border=True):
@@ -346,10 +384,16 @@ def render_bookings_tab():
                             st.success("Checked in!"); st.rerun()
                     st.error("Invalid code.")
     
+    # 4. Render New Booking Form OR Ban Message
     with st.container(border=True):
         st.markdown("#### New Booking")
-        if sum(1 for b in all_bookings if b['user_email'] == st.session_state.user_email and b.get('status') == 'No-Show') >= MAX_NO_SHOWS:
-            st.error("⚠️ BOOKING BLOCKED: Too many No-Shows. Contact Admin.")
+        
+        if is_banned:
+            st.error(ban_msg, icon="⛔")
+        elif sum(1 for b in all_bookings if b['user_email'] == st.session_state.user_email and b.get('status') == 'No-Show') >= MAX_NO_SHOWS:
+             # Fallback: Logic if ban hasn't written to JSON yet but limit is hit
+             st.error("⚠️ Limit reached. Suspension processing...", icon="⏳")
+             st.rerun() 
         else:
             c1, c2 = st.columns(2)
             with c1: b_type = st.selectbox("Resource:", list(AVAILABLE_RESOURCES.keys()))
@@ -521,26 +565,68 @@ def render_admin_tab():
     col2.metric("Active Now", sum(1 for b in todays_bookings if b['status'] == 'Active'))
     col3.metric("Total No-Shows", sum(1 for b in all_bookings if b['status'] == 'No-Show'))
     
-    st.markdown("---"); st.subheader("Student Lookup & Penalty Reset")
+    st.markdown("---"); st.subheader("Student Lookup")
     search_email = st.text_input("Enter Student Email:", placeholder="e.g. 55443@novasbe.pt")
     
     if search_email:
         student_bookings = [b for b in all_bookings if b['user_email'] == search_email]
-        if not student_bookings: st.warning("No booking history found for this email.")
+        user_data = load_student_ids()
+        is_banned = 'ban_release_date' in user_data.get(search_email, {})
+
+        if not student_bookings and not is_banned: 
+            st.warning("No booking history or bans found for this email.")
         else:
             no_shows = sum(1 for b in student_bookings if b['status'] == 'No-Show')
+            
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.markdown(f"**No-Shows:** {no_shows} / {MAX_NO_SHOWS}")
-                if no_shows >= MAX_NO_SHOWS: st.error("BLOCKED")
+                if is_banned: st.error("ACCOUNT SUSPENDED")
+                elif no_shows >= MAX_NO_SHOWS: st.warning("⚠️ At Limit (Ban Pending)")
                 else: st.success("Good Standing")
+            
             with c2:
+                # Show button if they have at least 1 No-Show
                 if no_shows > 0:
-                    if st.button("Forgive All", type="primary"):
-                        for b in all_bookings:
-                            if b['user_email'] == search_email and b['status'] == 'No-Show': 
-                                b['status'] = 'Forgiven'
-                        save_data(all_bookings); st.success("Forgiven!"); time.sleep(1); st.rerun()
+                    if st.button("Forgive No-Show", type="primary"):
+                        # 1. Identify the bookings strictly for this user that are No-Shows
+                        # We use a list comprehension to get references to the dicts in the main list
+                        user_violations = [b for b in all_bookings if b['user_email'] == search_email and b['status'] == 'No-Show']
+                        
+                        if user_violations:
+                            # Sort to forgive the oldest violation first (FIFO fairness)
+                            user_violations.sort(key=lambda x: x['date'] + x['start_time'])
+                            
+                            # Modify the oldest booking (this updates the dict inside all_bookings)
+                            user_violations[0]['status'] = 'Forgiven'
+                            save_data(all_bookings)
+                            
+                            # 2. Check if we can lift the ban
+                            # Recalculate count after the change
+                            new_count = no_shows - 1
+                            
+                            if new_count < MAX_NO_SHOWS:
+                                # Count is safe (e.g. 2/3), remove ban if it exists
+                                if search_email in user_data and 'ban_release_date' in user_data[search_email]:
+                                    del user_data[search_email]['ban_release_date']
+                                    save_student_ids(user_data)
+                                    st.success(f"Removed No-Show. Count is {new_count}/{MAX_NO_SHOWS}. Suspension lifted!")
+                                else:
+                                    st.success(f"Removed No-Show. Count is {new_count}/{MAX_NO_SHOWS}.")
+                            else:
+                                # Count is still too high (e.g. they had 4 violations, now 3), ban stays
+                                st.warning(f"Removed No-Show. Count is {new_count}/{MAX_NO_SHOWS}. User remains suspended.")
+                                
+                            time.sleep(1.5)
+                            st.rerun()
+                elif is_banned and no_shows == 0:
+                     # Edge case: User is banned but has 0 active no-shows (maybe manually edited DB?)
+                     if st.button("Lift Manual Ban", type="primary"):
+                        if search_email in user_data and 'ban_release_date' in user_data[search_email]:
+                            del user_data[search_email]['ban_release_date']
+                            save_student_ids(user_data)
+                            st.success("Manual ban removed.")
+                            time.sleep(1); st.rerun()
     
     st.markdown("---"); st.subheader("Master Booking List (Today)")
     if not todays_bookings: st.info("No bookings today.")

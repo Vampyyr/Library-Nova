@@ -108,7 +108,7 @@ def login_page():
         is_known_user = email_input in user_data_all
         stored_password_hash = user_data_all.get(email_input, {}).get('password')
         
-        if st.button("Log In", use_container_width=True):
+        if st.button("Log In / Create Account", use_container_width=True):
             # Validation
             if email_input != ADMIN_EMAIL and not email_input.endswith("@novasbe.pt"):
                  st.error("Invalid email domain. Must be @novasbe.pt")
