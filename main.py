@@ -4,7 +4,7 @@ from config import CUSTOM_ICON_URL
 # 1. Page Configuration
 # Must be the very first Streamlit command.
 st.set_page_config(
-    page_title="Alexandre dos Santos Library",
+    page_title="NOVA SBE Library",
     page_icon=CUSTOM_ICON_URL, 
     layout="wide", 
     initial_sidebar_state="collapsed",
