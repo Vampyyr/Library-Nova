@@ -96,7 +96,7 @@ def apply_custom_styles():
 
 def render_logo_and_title():
     st.markdown("""<div class="logo-container"><img src="https://data.maglr.com/2991/issues/32619/420528/assets/css/img/C1b6d5df0ef776ed6767e958076af26b94e3d83ede7af31ada0a71e8c5166e61e.png" alt="NOVA SBE Logo"></div>""", unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align: center; margin-bottom: 20px;'>Teresa e Alexandre dos Santos Library</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; margin-bottom: 20px;'>Teresa e Alexandre Soares dos Santos Library</h1>", unsafe_allow_html=True)
 
 # ==========================================
 # 🏠 HOME TAB
