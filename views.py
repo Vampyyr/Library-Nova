@@ -13,10 +13,16 @@ from data_manager import load_data, save_data, cleanup_and_update_bookings, get_
 # 🎨 STYLES & THEME
 # ==========================================
 
+# ==========================================
+# 🎨 STYLES & THEME
+# ==========================================
+
 def apply_custom_styles():
     """
     Injects CSS to override Streamlit defaults.
-    ...
+    - Enforces Dark Mode colors.
+    - Rounds buttons and cards.
+    - Hides default Streamlit menus for an 'App-like' feel.
     """
     st.markdown("""
     <style>
@@ -31,21 +37,60 @@ def apply_custom_styles():
         font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
-    /* ---------------------------------------------------- */
-    /* 🌟 FIX: Ensure all general text is white/F5F5F7      */
-    /* Target common text containers (p, span, div inside app) */
-    .stApp, .stApp p, .stApp span, .stApp div:where(:not(.logo-container *)) {
+    /* FIX: Ensure all general text is white/F5F5F7 by aggressively targeting text elements */
+    .stApp p, .stApp span, .stApp div:where(:not(.logo-container *)) {
         color: #F5F5F7 !important;
     }
-    /* ---------------------------------------------------- */
-    
+
     /* CARD COMPONENTS */
     div[data-testid="stVerticalBlockBorderWrapper"] > div {
-        /* ... existing styles ... */
+        background-color: #1C1C1E; 
+        border-radius: 16px;
+        padding: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     }
     
-    /* ... rest of your existing CSS ... */
+    /* BUTTON STYLING */
+    div.stButton > button { 
+        width: 100%;
+        background-color: #2C2C2E !important;
+        color: #FFFFFF !important; 
+        border: none !important;
+        border-radius: 12px !important; 
+        padding: 0.6rem 1rem !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease;
+    }
+    div.stButton > button:hover { 
+        background-color: #3A3A3C !important; 
+        transform: scale(1.01);
+    }
+    /* INCREASE TAB FONT SIZE */
+    div[data-baseweb="tab-list"] p {
+        font-size: 1.1rem !important; 
+        font-weight: 500 !important;
+    }
     
+    /* METRIC TEXT COLORS */
+    h1, h2, h3 { font-weight: 700 !important; letter-spacing: -0.02em !important; }
+    div[data-testid="stMetricValue"] { color: #FFFFFF !important; font-size: 1.8rem !important; }
+    div[data-testid="stMetricLabel"] { color: #AEAEB2 !important; }
+    
+    /* LOGO POSITIONING */
+    .logo-container { position: absolute; top: -40px; left: -40px; z-index: 1000; }
+    .logo-container img { height: 80px; width: auto; }
+    
+    /* MAP CONTAINER */
+    .floor-plan-container { 
+        position: relative; 
+        width: 100%; max-width: 800px; 
+        margin: 20px auto; 
+        border-radius: 12px; overflow: hidden; 
+        background-color: #FFFFFF; 
+        border: 4px solid #1C1C1E; 
+    }
+    .floor-plan-container img { width: 100%; height: auto; display: block; object-fit: contain; }
     </style>
     """, unsafe_allow_html=True)
 
