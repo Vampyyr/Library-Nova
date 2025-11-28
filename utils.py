@@ -8,39 +8,6 @@ from datetime import datetime, timedelta
 from config import LIBRARY_TIMEZONE
 
 # ==========================================
-# 🧪 TIME MACHINE & SENSORS
-# ==========================================
-
-def get_current_time():
-    """Returns the current time, UNLESS 'time_machine.json' forces a specific time."""
-    now = datetime.now(LIBRARY_TIMEZONE)
-    
-    # 1. Check JSON File (Backend override)
-    if os.path.exists("time_machine.json"):
-        try:
-            with open("time_machine.json", "r") as f:
-                data = json.load(f)
-                if data.get("active", False):
-                    target_hour = data.get("hour", now.hour)
-                    target_minute = data.get("minute", now.minute)
-                    return now.replace(hour=target_hour, minute=target_minute, second=0)
-        except: pass
-
-    # 2. Check Sidebar Slider (Frontend override)
-    if 'dev_hour' in st.session_state:
-        return now.replace(hour=st.session_state.dev_hour, minute=0, second=0)
-    
-    return now
-
-def get_sensor_data():
-    if os.path.exists("sensors.json"):
-        try:
-            with open("sensors.json", "r") as f:
-                return json.load(f)
-        except: return {}
-    return {}
-
-# ==========================================
 # 🛠️ STANDARD UTILITIES
 # ==========================================
 
